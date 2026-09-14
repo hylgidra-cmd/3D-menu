@@ -1,0 +1,21 @@
+django
+djangorestframework
+django-cors-headers
+python-decouple
+djangorestframework-simplejwt
+Pillow
+dj-database-url
+psycopg2-binary
+httpx
+numpy
+usd-core
+
+qrcode
+
+#FOR CLOUDFLARE
+django-storages
+boto3
+
+#FOR PRODUCTION
+gunicorn
+whitenoise

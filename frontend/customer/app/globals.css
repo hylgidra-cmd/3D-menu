@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #faf9f7;
+  --surface: #ffffff;
+  --ink: #1c1917;
+  --ink-muted: #78716c;
+  --line: rgba(28, 25, 23, 0.08);
+
+  /* Fallback brand color; each restaurant page overrides this inline
+     from Restaurant.primary_color so shared components stay tenant-neutral. */
+  --brand: #1c1917;
+  --brand-foreground: #ffffff;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --font-sans: var(--font-sans), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-display), Georgia, serif;
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+model-viewer {
+  width: 100%;
+  height: 100%;
+  --poster-color: transparent;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.animate-sheet-up {
+  animation: sheet-up 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
