@@ -4,13 +4,14 @@ from urllib.parse import urlparse
 import httpx
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.db.models import Count
 from rest_framework import generics, permissions, parsers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from apps.restaurant.models import RestaurantStaff
 from apps.restaurant.permissions import is_restaurant_role
 from .models import Eat, Category, extract_provider_model_url, usdz_error_payload
-from .serializers import EatSerializer, CreateEatSerializer, CategorySerializer
+from .serializers import EatSerializer, CreateEatSerializer, UpdateEatSerializer, CategorySerializer
 from .permissions import IsMineEat
 from utils.ai import api, extract_task_id, is_successful_generation_response, public_error_payload
 from utils.glb_normalize import GLBNormalizeError, TARGET_MAX_DIMENSION, normalize_glb_bytes
@@ -149,8 +150,13 @@ class EatListCreateAPIView(generics.ListCreateAPIView):
 
 
 class EatDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    parser_classes = [parsers.JSONParser, parsers.MultiPartParser, parsers.FormParser]
     queryset = Eat.objects.all()
-    serializer_class = EatSerializer
+
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return UpdateEatSerializer
+        return EatSerializer
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -239,7 +245,7 @@ class CategoryListCreateAPIView(generics.ListCreateAPIView):
         restaurant_id = self.request.query_params.get("restaurant")
         if restaurant_id:
             queryset = queryset.filter(restaurant_id=restaurant_id)
-        return queryset
+        return queryset.annotate(eats_count=Count("eats")).order_by("order", "id")
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -249,11 +255,12 @@ class CategoryListCreateAPIView(generics.ListCreateAPIView):
         if not is_restaurant_role(request.user, restaurant, RestaurantStaff.Role.OWNER, RestaurantStaff.Role.MANAGER):
             return Response({"detail": "You do not have permission to perform this action."}, status=403)
         serializer.save()
-        return Response(CategorySerializer(serializer.instance).data, status=201)
+        category = Category.objects.annotate(eats_count=Count("eats")).get(pk=serializer.instance.pk)
+        return Response(CategorySerializer(category).data, status=201)
 
 
 class CategoryDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Category.objects.all()
+    queryset = Category.objects.annotate(eats_count=Count("eats"))
     serializer_class = CategorySerializer
 
     def get_permissions(self):

@@ -6,7 +6,6 @@ export type PublicRestaurant = {
   location: string | null;
   logo: string | null;
   cover_image: string | null;
-  primary_color: string;
 };
 
 export type PublicEat = {
@@ -41,3 +40,5 @@ export type PublicMenu = {
   restaurant: PublicRestaurant;
   categories: PublicCategory[];
 };
+
+export type PaymentMethod = "cash" | "card" | "online";

@@ -7,8 +7,7 @@
   --ink-muted: #78716c;
   --line: rgba(28, 25, 23, 0.08);
 
-  /* Fallback brand color; each restaurant page overrides this inline
-     from Restaurant.primary_color so shared components stay tenant-neutral. */
+  /* Shared Menu3D action color for every restaurant menu. */
   --brand: #1c1917;
   --brand-foreground: #ffffff;
 }

@@ -21,9 +21,9 @@ function Guard({ children }: { children: React.ReactNode }) {
 
   return (
     <RestaurantProvider>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen flex-col lg:flex-row">
         <Sidebar />
-        <div className="flex-1 p-8">{children}</div>
+        <div className="flex-1 p-4 sm:p-8">{children}</div>
       </div>
     </RestaurantProvider>
   );

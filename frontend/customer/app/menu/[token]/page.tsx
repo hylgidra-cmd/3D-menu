@@ -28,17 +28,9 @@ export default async function TableMenuPage({
   if (!menu) notFound();
 
   return (
-    <main
-      className="flex min-h-screen flex-col"
-      style={
-        {
-          "--brand": menu.restaurant.primary_color,
-          "--brand-foreground": "#ffffff",
-        } as React.CSSProperties
-      }
-    >
+    <main className="flex min-h-screen flex-col">
       <RestaurantHeader restaurant={menu.restaurant} table={menu.table} />
-      <MenuBrowser categories={menu.categories} />
+      <MenuBrowser categories={menu.categories} token={token} />
     </main>
   );
 }

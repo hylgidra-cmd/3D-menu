@@ -14,7 +14,6 @@ export type Restaurant = {
   description: string | null;
   location: string | null;
   logo: string | null;
-  primary_color: string;
   is_active: boolean;
   created_at: string;
 };

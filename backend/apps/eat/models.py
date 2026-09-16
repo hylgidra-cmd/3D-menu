@@ -76,6 +76,7 @@ def usdz_error_payload(error_type):
 class Category(models.Model):
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="categories")
     name = models.CharField(max_length=100)
+    icon = models.CharField(max_length=16, default="utensils")
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
 

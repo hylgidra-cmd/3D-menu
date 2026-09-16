@@ -14,7 +14,6 @@ class Restaurant(models.Model):
     coordinates = models.JSONField(default=dict, blank=True, null=True, verbose_name="Coordinates")
     logo = models.ImageField(upload_to="restaurant/logos/", blank=True, null=True, verbose_name="Logo")
     cover_image = models.ImageField(upload_to="restaurant/covers/", blank=True, null=True, verbose_name="Cover image")
-    primary_color = models.CharField(max_length=7, default="#111827", verbose_name="Primary color")
     is_active = models.BooleanField(default=True, verbose_name="Is active")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created at")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated at")

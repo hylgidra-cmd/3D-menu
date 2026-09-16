@@ -207,3 +207,105 @@ docker compose exec backend python manage.py regenerate_qr_codes
 
 Also update `CORS_ALLOWED_ORIGINS` on the backend to the three custom
 frontend domains (not the `*.vercel.app` ones) once they're attached.
+
+## QR va mobil AR: production uchun majburiy tekshiruv
+
+QR menyu `FRONTEND_BASE_URL/menu/<table-token>` manziliga olib boradi. Shu
+sababli QR kodi, customer frontend, API va media fayllar uchun hammasi HTTPS
+orqali ishlashi kerak. `localhost`, IP-manzil yoki HTTP manzil bilan chiqarilgan
+QR kodni restorandagi mehmon telefonida ishlatish mumkin emas.
+
+### 1. Domenlarni yakunlab, so'ng QR kodlarni yangilang
+
+Avval customer ilovasi uchun yakuniy HTTPS manzilni belgilang, masalan
+`https://menu.yourdomain.com`. Backendda aynan shu qiymatni qo'ying:
+
+```env
+FRONTEND_BASE_URL=https://menu.yourdomain.com
+CORS_ALLOWED_ORIGINS=https://menu.yourdomain.com,https://admin.yourdomain.com,https://superadmin.yourdomain.com
+```
+
+So'ng backendni qayta deploy qiling va mavjud QR rasmlarini qayta yarating:
+
+```bash
+# VPS
+docker compose exec backend python manage.py regenerate_qr_codes
+
+# Render Shell
+python manage.py regenerate_qr_codes
+```
+
+Har bir stol uchun admin paneldan QR ni yuklab olib, oddiy telefon kamerasi
+bilan tekshiring: u `https://menu.../menu/<token>` ga ochilishi va stolning
+faol menyusini ko'rsatishi kerak. Domenni keyin o'zgartirsangiz, shu buyruqni
+yana ishga tushiring.
+
+### 2. Cloudflare R2: 3D fayllar uchun CORS va Content-Type
+
+Productionda rasmlar hamda `.glb` / `.usdz` fayllar R2 dan keladi. R2 bucket
+uchun public custom domain (masalan, `https://media.yourdomain.com`) ulang va
+`CLOUDFLARE_R2_PUBLIC_URL` ga shu HTTPS manzilni yozing. Customer originini
+R2 bucket CORS sozlamasiga qo'shing:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://menu.yourdomain.com"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": [],
+    "ExposeHeaders": ["Content-Length", "Content-Type", "Accept-Ranges"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+`menu.yourdomain.com` ni haqiqiy customer domeningiz bilan almashtiring.
+Bir nechta customer domeni (masalan, vaqtincha Vercel domeni) bo'lsa, har
+birini `AllowedOrigins` ro'yxatiga alohida qo'shing. R2 CORS siyosati aniq
+origin, metod va headerlar bilan beriladi; siyosat yangilangach, CDN cache
+ta'sir qilsa Cloudflare cache'ni purge qiling. [Cloudflare R2 CORS
+qo'llanmasi](https://developers.cloudflare.com/r2/buckets/cors/).
+
+Deploydan keyin kamida bitta haqiqiy model URL'i uchun quyidagilarni
+tekshiring (brauzer yoki `curl -I` orqali):
+
+| Fayl | Kutiladigan `Content-Type` |
+|---|---|
+| `.glb` | `model/gltf-binary` |
+| `.usdz` | `model/vnd.usdz+zip` |
+
+Bu loyiha upload vaqtida ushbu MIME turlarini sozlaydi. R2 yoki proxy ularni
+`application/octet-stream` qilib yuborsa, AR tugmasi ayrim iPhone yoki Android
+qurilmalarda ishlamasligi mumkin.
+
+### 3. iOS va Android qurilma talablari
+
+- **iPhone/iPad:** QR ni Safari yoki telefonning standart kamerasi orqali
+  oching. AR uchun qurilma ARKit/Quick Look'ni qo'llashi va taomda `USDZ`
+  fayli tayyor bo'lishi kerak. Admin menyu sahifasidagi `iOS: tayyor` holatini
+  tekshiring. Telegram/Instagram kabi ichki brauzer AR ni cheklashi mumkin;
+  bunday holda foydalanuvchi "Safari'da ochish"ni tanlaydi.
+- **Android:** Google Chrome hamda Google Play Services for AR (ARCore)
+  yangilangan bo'lishi kerak. GLB fayl tayyor bo'lsa, `Stol ustida ko'rish`
+  tugmasi Scene Viewer orqali ochiladi.
+- Har ikkisi uchun model va customer sahifasi public HTTPS manzilda bo'lishi
+  shart. Ichki tarmoqdagi `http://192.168...` yoki development URL production
+  AR uchun mos emas.
+
+### 4. Go-live oldidan AR test ro'yxati
+
+1. `python manage.py normalize_models` ni bir marta ishga tushiring; avvalgi
+   taom modellari ham real stol o'lchamiga yaqinlashtiriladi va iOS uchun USDZ
+   tayyorlanadi.
+2. Admin panelda sinov taomi uchun GLB **va** `iOS: tayyor` statusini ko'ring.
+3. Restorandagi haqiqiy QR rasmni iPhone va Android telefon bilan alohida
+   skanerlab ko'ring.
+4. Menyu ochilgach taomni bosing, 3D preview yuklanganini tekshiring va
+   `Stol ustida ko'rish` tugmasini bosing. Kamera ruxsatini bering va model
+   stol ustiga joylashishini sinang.
+5. Shu QR dan taomni savatga qo'shib, naqd, karta va onlayn to'lov usullarini
+   ko'ring; test buyurtmasi admin `Buyurtmalar` sahifasida chiqishini tekshiring.
+
+Render free instance uyquga ketishi va Blender USDZ conversion uchun xotirasi
+kamligi sababli, restoran ishga tushishi hamda iOS AR muhim bo'lsa, VPS yoki
+yetarli xotirali pullik Render instance tanlang.

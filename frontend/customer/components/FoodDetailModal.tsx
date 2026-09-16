@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "@google/model-viewer";
 import { resolveMediaUrl } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
@@ -9,9 +9,11 @@ import type { PublicEat } from "@/lib/types";
 export default function FoodDetailModal({
   eat,
   onClose,
+  onAdd,
 }: {
   eat: PublicEat;
   onClose: () => void;
+  onAdd: () => void;
 }) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -19,8 +21,19 @@ export default function FoodDetailModal({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  // Quick Look on iPhone/iPad requires a USDZ asset. Keeping the regular 3D
+  // preview visible is useful, but showing its AR button before USDZ is ready
+  // would send the guest to a native AR error screen.
+  const [isAppleMobile, setIsAppleMobile] = useState(false);
+  useEffect(() => {
+    const applePhoneOrTablet = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    setIsAppleMobile(applePhoneOrTablet);
+  }, []);
+
   const imageUrl = resolveMediaUrl(eat.image);
   const hasAr = Boolean(eat.model_url);
+  const canLaunchNativeAr = hasAr && (!isAppleMobile || Boolean(eat.model_url_usdz));
 
   return (
     <div
@@ -50,15 +63,17 @@ export default function FoodDetailModal({
               loading="eager"
               reveal="auto"
             >
-              <button
-                slot="ar-button"
-                className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--brand-foreground)] shadow-lg shadow-black/10"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-                  <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.5 3.6L12 11.5 5.5 7.9 12 4.3ZM5 9.2l6 3.3v7L5 16.2V9.2Zm8 10.3v-7l6-3.3v7l-6 3.3Z" />
-                </svg>
-                Stol ustida ko&apos;rish
-              </button>
+              {canLaunchNativeAr && (
+                <button
+                  slot="ar-button"
+                  className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--brand-foreground)] shadow-lg shadow-black/10"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+                    <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.5 3.6L12 11.5 5.5 7.9 12 4.3ZM5 9.2l6 3.3v7L5 16.2V9.2Zm8 10.3v-7l6-3.3v7l-6 3.3Z" />
+                  </svg>
+                  Stol ustida ko&apos;rish
+                </button>
+              )}
             </model-viewer>
           ) : imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -84,6 +99,12 @@ export default function FoodDetailModal({
           <p className="pt-1 text-lg font-semibold text-[var(--ink)]">
             {formatPrice(eat.price)}
           </p>
+          {hasAr && isAppleMobile && !eat.model_url_usdz && (
+            <p className="rounded-xl bg-[var(--bg)] px-3.5 py-2.5 text-[13px] text-[var(--ink-muted)]">
+              3D ko&apos;rinish tayyor. iPhone uchun AR fayli hali tayyorlanmoqda.
+            </p>
+          )}
+          <button onClick={onAdd} className="mt-2 rounded-full bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white">Savatga qo&apos;shish</button>
           {!hasAr && eat.model_error && (
             <p className="mt-1 rounded-xl bg-[var(--bg)] px-3.5 py-2.5 text-[13px] text-[var(--ink-muted)]">
               Bu taom uchun 3D ko&apos;rinishni tayyorlab bo&apos;lmadi.

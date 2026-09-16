@@ -1,15 +1,23 @@
+import io
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.restaurant.models import Restaurant, RestaurantStaff
-from .models import Eat
+from .models import Category, Eat
 
 User = get_user_model()
+
+
+def valid_image_upload(name):
+    buffer = io.BytesIO()
+    Image.new("RGB", (10, 10), color=(200, 50, 50)).save(buffer, format="PNG")
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
 
 
 class EatModelProviderErrorTests(APITestCase):
@@ -92,3 +100,73 @@ class EatModelProviderErrorTests(APITestCase):
         self.eat.refresh_from_db()
         self.assertEqual(self.eat.task_json, old_task_json)
         self.assertEqual(self.eat.model_file.name, old_model_name)
+
+
+class CategoryApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="category_owner", password="Passw0rd123")
+        self.restaurant = Restaurant.objects.create(user=self.user, name="Category Cafe")
+        RestaurantStaff.objects.create(
+            restaurant=self.restaurant,
+            user=self.user,
+            role=RestaurantStaff.Role.OWNER,
+        )
+        self.hidden_category = Category.objects.create(
+            restaurant=self.restaurant,
+            name="Mavsumiy",
+            icon="🍰",
+            is_active=False,
+        )
+
+    def test_category_list_includes_icon_and_eat_count(self):
+        Eat.objects.create(
+            restaurant=self.restaurant,
+            category=self.hidden_category,
+            name="Mavsumiy desert",
+            description="Yashirilgan kategoriya bilan oldingi taom",
+            price="15000.00",
+            image=SimpleUploadedFile("dessert.jpg", b"image", content_type="image/jpeg"),
+        )
+
+        response = self.client.get(f"/api/eat/category/?restaurant={self.restaurant.id}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        category = response.data["results"][0]
+        self.assertEqual(category["icon"], "🍰")
+        self.assertEqual(category["eats_count"], 1)
+
+    def test_hidden_category_cannot_be_selected_for_a_new_eat(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post(
+            "/api/eat/",
+            {
+                "restaurant": self.restaurant.id,
+                "category": self.hidden_category.id,
+                "name": "Yangi desert",
+                "description": "Yashirilgan kategoriya tekshiruvi",
+                "price": "18000.00",
+                "image": valid_image_upload("new-dessert.png"),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("category", response.data)
+
+    def test_existing_eat_keeps_its_hidden_category_when_edited(self):
+        eat = Eat.objects.create(
+            restaurant=self.restaurant,
+            category=self.hidden_category,
+            name="Eski desert",
+            description="Avvaldan biriktirilgan yashirilgan kategoriya",
+            price="16000.00",
+            image=SimpleUploadedFile("old-dessert.jpg", b"image", content_type="image/jpeg"),
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.patch(f"/api/eat/{eat.id}/", {"name": "Yangilangan desert"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        eat.refresh_from_db()
+        self.assertEqual(eat.category_id, self.hidden_category.id)

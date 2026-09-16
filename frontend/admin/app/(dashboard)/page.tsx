@@ -7,7 +7,6 @@ import {
   FolderTree,
   UtensilsCrossed,
   QrCode,
-  Users,
   Store,
   ArrowRight,
   type LucideIcon,
@@ -22,7 +21,6 @@ const quickActions: { href: string; label: string; description: string; icon: Lu
   { href: "/categories", label: "Kategoriya qo'shish", description: "Menyuni bo'limlarga ajrating", icon: FolderTree },
   { href: "/menu", label: "Taom qo'shish", description: "Rasm bilan yangi taom yarating", icon: UtensilsCrossed },
   { href: "/tables", label: "Stol yaratish", description: "Har bir stol uchun QR kod oling", icon: QrCode },
-  { href: "/staff", label: "Xodim taklif qilish", description: "Jamoangizga a'zo qo'shing", icon: Users },
 ];
 
 export default function DashboardHome() {

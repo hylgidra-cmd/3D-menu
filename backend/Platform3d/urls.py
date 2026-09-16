@@ -21,7 +21,9 @@ urlpatterns = [
     path("api/restaurant/", include("apps.restaurant.urls")),
     path("api/table/", include("apps.table.urls")),
     path("api/eat/", include("apps.eat.urls")),
+    path("api/orders/", include("apps.orders.urls")),
     path("api/public/menu/<uuid:token>/", PublicTableMenuAPIView.as_view()),
+    path("api/public/orders/", include("apps.orders.urls_public")),
 
     # httpOnly-cookie auth flow, used by the admin/super-admin browser apps.
     path("api/auth/login/", CookieTokenObtainPairView.as_view()),

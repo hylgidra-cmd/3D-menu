@@ -23,6 +23,29 @@ class CreateEatSerializer(serializers.ModelSerializer):
         model = Eat
         fields = ["name", "description", "price", "image", "restaurant", "category"]
 
+    def validate(self, attrs):
+        category = attrs.get("category")
+        restaurant = attrs.get("restaurant")
+        if category and category.restaurant_id != restaurant.id:
+            raise serializers.ValidationError({"category": "Kategoriya tanlangan restoranga tegishli emas."})
+        if category and not category.is_active:
+            raise serializers.ValidationError({"category": "Yashirilgan kategoriyaga yangi taom qo'shib bo'lmaydi."})
+        return attrs
+
+
+class UpdateEatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Eat
+        fields = ["name", "description", "price", "image", "category"]
+
+    def validate(self, attrs):
+        category = attrs.get("category", self.instance.category)
+        if category and category.restaurant_id != self.instance.restaurant_id:
+            raise serializers.ValidationError({"category": "Kategoriya tanlangan restoranga tegishli emas."})
+        if category and not category.is_active and category != self.instance.category:
+            raise serializers.ValidationError({"category": "Yashirilgan kategoriyaga yangi taom qo'shib bo'lmaydi."})
+        return attrs
+
 
 class PublicEatSerializer(serializers.ModelSerializer):
     model_url = serializers.ReadOnlyField()
@@ -41,9 +64,11 @@ class PublicEatSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    eats_count = serializers.IntegerField(read_only=True, default=0)
+
     class Meta:
         model = Category
-        fields = "__all__"
+        fields = ["id", "restaurant", "name", "icon", "order", "is_active", "eats_count"]
 
 
 class PublicCategorySerializer(serializers.ModelSerializer):

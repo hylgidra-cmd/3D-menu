@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "Menu3D — Admin",
-  description: "Restoran menyusi, stollar va xodimlarni boshqarish paneli",
+  description: "Restoran menyusi va stollarni boshqarish paneli",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

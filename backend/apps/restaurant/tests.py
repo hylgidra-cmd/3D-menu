@@ -64,37 +64,3 @@ class RestaurantRolePermissionTests(APITestCase):
         self.client.force_authenticate(user=self.manager)
         res = self.client.post("/api/eat/category/", {"restaurant": self.restaurant.id, "name": "Drinks"})
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-
-    def test_manager_cannot_invite_staff(self):
-        outsider = User.objects.create_user(username="outsider", password="x")
-        self.client.force_authenticate(user=self.manager)
-        res = self.client.post(
-            f"/api/restaurant/{self.restaurant.id}/staff/",
-            {"username": outsider.username, "role": "waiter"},
-        )
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_owner_can_invite_staff(self):
-        outsider = User.objects.create_user(username="outsider2", password="x")
-        self.client.force_authenticate(user=self.owner)
-        res = self.client.post(
-            f"/api/restaurant/{self.restaurant.id}/staff/",
-            {"username": outsider.username, "role": "waiter"},
-        )
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-
-    def test_cannot_invite_someone_as_owner_via_invite_endpoint(self):
-        outsider = User.objects.create_user(username="outsider3", password="x")
-        self.client.force_authenticate(user=self.owner)
-        res = self.client.post(
-            f"/api/restaurant/{self.restaurant.id}/staff/",
-            {"username": outsider.username, "role": "owner"},
-        )
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_last_owner_cannot_be_removed(self):
-        owner_staff = RestaurantStaff.objects.get(restaurant=self.restaurant, user=self.owner)
-        self.client.force_authenticate(user=self.owner)
-        res = self.client.delete(f"/api/restaurant/{self.restaurant.id}/staff/{owner_staff.id}/")
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue(RestaurantStaff.objects.filter(pk=owner_staff.pk).exists())

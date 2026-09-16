@@ -13,7 +13,6 @@ export type MyRestaurant = {
   name: string;
   slug: string;
   logo: string | null;
-  primary_color: string;
   is_active: boolean;
   role: RestaurantRole;
 };
@@ -28,7 +27,6 @@ export type Restaurant = {
   coordinates: Record<string, unknown>;
   logo: string | null;
   cover_image: string | null;
-  primary_color: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -38,8 +36,10 @@ export type Category = {
   id: number;
   restaurant: number;
   name: string;
+  icon: string;
   order: number;
   is_active: boolean;
+  eats_count: number;
 };
 
 export type Eat = {
@@ -74,10 +74,4 @@ export type Table = {
   is_active: boolean;
 };
 
-export type RestaurantStaff = {
-  id: number;
-  restaurant: number;
-  user: User;
-  role: RestaurantRole;
-  created_at: string;
-};
+export type Order = { id: number; table_name: string; status: string; payment_method: string; note: string; total: string; created_at: string; items: { id: number; name: string; price: string; quantity: number }[] };

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import dynamic from "next/dynamic";
+import { Pencil, Plus, X } from "lucide-react";
 import { apiFetch, resolveMediaUrl, ApiError, AuthenticationError } from "@/lib/api";
 import { useRestaurant } from "@/lib/restaurant";
 import { formatPrice } from "@/lib/format";
@@ -70,6 +71,8 @@ export default function MenuPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checkingId, setCheckingId] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingEat, setEditingEat] = useState<Eat | null>(null);
 
   const load = async () => {
     if (!current) return;
@@ -116,9 +119,9 @@ export default function MenuPage() {
     setImage(null);
   };
 
-  const onCreate = async (e: FormEvent) => {
+  const onSave = async (e: FormEvent) => {
     e.preventDefault();
-    if (!current || !image) return;
+    if (!current || (!image && !editingEat)) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -127,11 +130,19 @@ export default function MenuPage() {
       form.append("name", name);
       form.append("description", description);
       form.append("price", price);
-      if (categoryId) form.append("category", categoryId);
-      form.append("image", image);
-
-      await apiFetch("/api/eat/", { method: "POST", body: form, isForm: true });
+      if (editingEat) {
+        // Send an empty value when the existing category is deliberately cleared.
+        form.append("category", categoryId);
+        if (image) form.append("image", image);
+        await apiFetch(`/api/eat/${editingEat.id}/`, { method: "PATCH", body: form, isForm: true });
+      } else {
+        if (categoryId) form.append("category", categoryId);
+        form.append("image", image!);
+        await apiFetch("/api/eat/", { method: "POST", body: form, isForm: true });
+      }
       resetForm();
+      setEditingEat(null);
+      setModalOpen(false);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Xatolik yuz berdi.");
@@ -174,60 +185,121 @@ export default function MenuPage() {
     await load();
   };
 
+  const openEdit = (eat: Eat) => {
+    setEditingEat(eat);
+    setName(eat.name);
+    setDescription(eat.description);
+    setPrice(eat.price);
+    setCategoryId(eat.category ? String(eat.category) : "");
+    setImage(null);
+    setError(null);
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    if (submitting) return;
+    setModalOpen(false);
+    setEditingEat(null);
+    resetForm();
+  };
+
   if (restaurantLoading) return <p className="text-sm text-[var(--ink-muted)]">Yuklanmoqda...</p>;
   if (!current) return <p className="text-sm text-[var(--ink-muted)]">Avval restoran yarating.</p>;
 
   return (
     <div className="flex max-w-4xl flex-col gap-4">
-      <h1 className="text-lg font-bold text-[var(--ink)]">Taomlar</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-lg font-bold text-[var(--ink)]">Taomlar</h1>
+        <Button
+          onClick={() => {
+            setError(null);
+            setEditingEat(null);
+            resetForm();
+            setModalOpen(true);
+          }}
+        >
+          <Plus size={16} strokeWidth={2} />
+          Taom qo&apos;shish
+        </Button>
+      </div>
 
-      <Card>
-        <form onSubmit={onCreate} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Nomi">
-            <Input value={name} onChange={(e) => setName(e.target.value)} required />
-          </Field>
-          <Field label="Narxi (so'm)">
-            <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required min={0} step="0.01" />
-          </Field>
-          <Field label="Kategoriya">
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="rounded-lg border border-[var(--line)] px-3 py-2 text-sm"
-            >
-              <option value="">Kategoriyasiz</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Rasm">
-            <Input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] ?? null)} required />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Tavsif">
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} required minLength={5} />
-            </Field>
+      {modalOpen && (
+        <div className="fixed inset-0 z-50" onClick={closeModal}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            className="animate-menu-drop absolute left-1/2 top-1/2 w-[min(680px,calc(100vw-2rem))] max-h-[85vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl bg-[var(--surface)] p-5 shadow-lg sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-bold text-[var(--ink)]">{editingEat ? "Taomni tahrirlash" : "Yangi taom"}</h2>
+              <button
+                onClick={closeModal}
+                aria-label="Yopish"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--ink)] ring-1 ring-[var(--line)]"
+              >
+                <X size={18} strokeWidth={2} />
+              </button>
+            </div>
+
+            <form onSubmit={onSave} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-3">
+                <Field label="Nomi">
+                  <Input value={name} onChange={(e) => setName(e.target.value)} required />
+                </Field>
+                <Field label="Narxi (so'm)">
+                  <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required min={0} step="0.01" />
+                </Field>
+                <Field label="Kategoriya">
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    className="rounded-lg border border-[var(--line)] px-3 py-2 text-sm"
+                  >
+                    <option value="">Kategoriyasiz</option>
+                    {categories.filter((c) => c.is_active || c.id === editingEat?.category).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}{!c.is_active ? " (yashirilgan)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Rasm">
+                  <Input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] ?? null)} required={!editingEat} />
+                </Field>
+              </div>
+
+              {/* Tavsif alohida, o'ng tomonda turadi */}
+              <div className="flex flex-col">
+                <Field label="Tavsif">
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    required
+                    minLength={5}
+                    className="min-h-[9.5rem] flex-1 sm:min-h-full"
+                  />
+                </Field>
+              </div>
+
+              <div className="sm:col-span-2 flex flex-col gap-2">
+                <ErrorText>{error}</ErrorText>
+                <Button type="submit" disabled={submitting} className="self-start">
+                  {submitting ? "Yuklanmoqda..." : editingEat ? "Saqlash" : "Qo'shish (3D generatsiya avtomatik boshlanadi)"}
+                </Button>
+              </div>
+            </form>
           </div>
-          <div className="sm:col-span-2 flex flex-col gap-2">
-            <ErrorText>{error}</ErrorText>
-            <Button type="submit" disabled={submitting} className="self-start">
-              {submitting ? "Yuklanmoqda..." : "Qo'shish (3D generatsiya avtomatik boshlanadi)"}
-            </Button>
-          </div>
-        </form>
-      </Card>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-[var(--ink-muted)]">Yuklanmoqda...</p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
           {eats.map((eat) => {
             const imageUrl = resolveMediaUrl(eat.image);
             return (
-              <Card key={eat.id} className="flex flex-col gap-2 p-3">
+              <Card key={eat.id} className="flex flex-col gap-2 p-2">
                 {eat.model_url ? (
                   <Model3DPreview modelUrl={resolveMediaUrl(eat.model_url)!} poster={imageUrl} alt={eat.name} />
                 ) : (
@@ -267,6 +339,9 @@ export default function MenuPage() {
                   </p>
                 )}
                 <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => openEdit(eat)}>
+                    <Pencil size={15} /> Tahrirlash
+                  </Button>
                   {!eat.model_url && (
                     <Button variant="secondary" onClick={() => checkModel(eat)} disabled={checkingId === eat.id}>
                       {checkingId === eat.id ? "..." : "Tekshirish"}

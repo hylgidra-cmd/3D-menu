@@ -1,118 +1,34 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { Copy, Download, Eye, MapPin, Plus, QrCode, Trash2, UtensilsCrossed, X } from "lucide-react";
 import { apiFetch, resolveMediaUrl, ApiError } from "@/lib/api";
 import { useRestaurant } from "@/lib/restaurant";
-import { Button, Card, ErrorText, Field, Input } from "@/components/ui";
+import { Button, ErrorText, Field, Input } from "@/components/ui";
 import type { Table } from "@/lib/types";
 
 export default function TablesPage() {
   const { current, loading: restaurantLoading } = useRestaurant();
-  const [tables, setTables] = useState<Table[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [name, setName] = useState("");
-  const [place, setPlace] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<number | null>(null);
-
-  const load = async () => {
-    if (!current) return;
-    setLoading(true);
-    const data = await apiFetch<{ results: Table[] }>(`/api/table/?restaurant=${current.id}`);
-    setTables(data.results);
-    setLoading(false);
-  };
-
+  const [tables, setTables] = useState<Table[]>([]); const [loading, setLoading] = useState(true);
+  const [name, setName] = useState(""); const [place, setPlace] = useState(""); const [error, setError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false); const [selected, setSelected] = useState<Table | null>(null); const [copiedId, setCopiedId] = useState<number | null>(null);
+  const load = async () => { if (!current) return; setLoading(true); try { setTables((await apiFetch<{ results: Table[] }>(`/api/table/?restaurant=${current.id}`)).results); } finally { setLoading(false); } };
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reload when the selected restaurant changes
-    load();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reload when selected restaurant changes
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
-
-  const onCreate = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!current) return;
-    setError(null);
-    try {
-      await apiFetch("/api/table/", {
-        method: "POST",
-        body: JSON.stringify({ restaurant: current.id, name, place }),
-      });
-      setName("");
-      setPlace("");
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Xatolik yuz berdi.");
-    }
-  };
-
-  const remove = async (table: Table) => {
-    if (!confirm(`Stol "${table.name}" o'chirilsinmi? QR kod ishlamay qoladi.`)) return;
-    await apiFetch(`/api/table/${table.id}/`, { method: "DELETE" });
-    await load();
-  };
-
-  const copyLink = async (table: Table) => {
-    await navigator.clipboard.writeText(table.menu_url);
-    setCopiedId(table.id);
-    setTimeout(() => setCopiedId(null), 1500);
-  };
-
+  const create = async (e: FormEvent) => { e.preventDefault(); if (!current) return; try { await apiFetch("/api/table/", { method: "POST", body: JSON.stringify({ restaurant: current.id, name, place }) }); setName(""); setPlace(""); setCreateOpen(false); await load(); } catch (err) { setError(err instanceof ApiError ? err.message : "Stolni saqlab bo'lmadi."); } };
+  const toggle = async (table: Table) => { await apiFetch(`/api/table/${table.id}/`, { method: "PATCH", body: JSON.stringify({ is_active: !table.is_active }) }); await load(); };
+  const remove = async (table: Table) => { if (!confirm(`Stol ${table.name} o'chirilsinmi? QR kod va unga oid buyurtmalar uchun yangi stol yaratiladi.`)) return; await apiFetch(`/api/table/${table.id}/`, { method: "DELETE" }); await load(); };
+  const copy = async (table: Table) => { await navigator.clipboard.writeText(table.menu_url); setCopiedId(table.id); setTimeout(() => setCopiedId(null), 1500); };
   if (restaurantLoading) return <p className="text-sm text-[var(--ink-muted)]">Yuklanmoqda...</p>;
   if (!current) return <p className="text-sm text-[var(--ink-muted)]">Avval restoran yarating.</p>;
-
-  return (
-    <div className="flex max-w-3xl flex-col gap-4">
-      <h1 className="text-lg font-bold text-[var(--ink)]">Stollar / QR kodlar</h1>
-
-      <Card>
-        <form onSubmit={onCreate} className="flex items-end gap-2">
-          <Field label="Stol nomi">
-            <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="A1" />
-          </Field>
-          <Field label="Joylashuv">
-            <Input value={place} onChange={(e) => setPlace(e.target.value)} placeholder="Zal" />
-          </Field>
-          <Button type="submit">Qo&apos;shish</Button>
-        </form>
-        <ErrorText>{error}</ErrorText>
-      </Card>
-
-      {loading ? (
-        <p className="text-sm text-[var(--ink-muted)]">Yuklanmoqda...</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {tables.map((table) => {
-            const qrUrl = resolveMediaUrl(table.qr_code);
-            return (
-              <Card key={table.id} className="flex flex-col items-center gap-2 p-3 text-center">
-                {qrUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={qrUrl} alt={`QR - ${table.name}`} className="h-32 w-32" />
-                )}
-                <p className="text-sm font-semibold">
-                  {table.name}
-                  {table.place ? ` · ${table.place}` : ""}
-                </p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Button variant="secondary" onClick={() => copyLink(table)}>
-                    {copiedId === table.id ? "Nusxalandi!" : "Havolani nusxalash"}
-                  </Button>
-                  <a href={qrUrl ?? "#"} download={`stol-${table.name}.png`}>
-                    <Button variant="secondary" type="button">
-                      Yuklab olish
-                    </Button>
-                  </a>
-                  <Button variant="danger" onClick={() => remove(table)}>
-                    O&apos;chirish
-                  </Button>
-                </div>
-              </Card>
-            );
-          })}
-          {tables.length === 0 && <p className="text-sm text-[var(--ink-muted)]">Hozircha stol yo&apos;q.</p>}
-        </div>
-      )}
-    </div>
-  );
+  return <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <header className="flex flex-col gap-4 border-b border-[var(--line)] pb-5 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl font-bold tracking-tight">Stollar va QR kodlar</h1><p className="mt-1 text-sm text-[var(--ink-muted)]">Har stol uchun alohida QR yarating. Mijoz skaner qilganda buyurtma aynan shu stolga tushadi.</p></div><Button onClick={() => { setError(null); setCreateOpen(true); }}><Plus size={17} /> Yangi stol</Button></header>
+    <div className="grid grid-cols-1 gap-3 rounded-2xl bg-[var(--surface)] p-4 ring-1 ring-[var(--line)] sm:grid-cols-3"><div className="flex gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--bg)]"><QrCode size={18} /></span><p className="text-sm"><b>1. QR ni qo&apos;ying</b><br /><span className="text-[var(--ink-muted)]">Har stolga tegishlisini joylang.</span></p></div><div className="flex gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--bg)]"><UtensilsCrossed size={18} /></span><p className="text-sm"><b>2. Mijoz skanerlaydi</b><br /><span className="text-[var(--ink-muted)]">Menyu va savat ochiladi.</span></p></div><div className="flex gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--bg)]"><Eye size={18} /></span><p className="text-sm"><b>3. Buyurtma keladi</b><br /><span className="text-[var(--ink-muted)]">Buyurtmalar bo&apos;limida ko&apos;rasiz.</span></p></div></div>
+    {loading ? <p className="text-sm text-[var(--ink-muted)]">Yuklanmoqda...</p> : tables.length === 0 ? <div className="rounded-3xl border border-dashed border-[var(--line)] bg-[var(--surface)] py-16 text-center"><QrCode className="mx-auto text-[var(--ink-muted)]" /><h2 className="mt-4 font-bold">Hozircha stol yo&apos;q</h2><p className="mt-1 text-sm text-[var(--ink-muted)]">Birinchi stolni yarating va QR kodini stolga joylang.</p><Button className="mt-5" onClick={() => setCreateOpen(true)}><Plus size={16} /> Birinchi stolni yarating</Button></div> : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{tables.map((table) => <div key={table.id} className={`rounded-3xl border bg-[var(--surface)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${table.is_active ? "border-[var(--line)]" : "border-stone-200 opacity-70"}`}><div className="flex justify-between"><div className="flex items-center gap-3"><span className="grid h-14 w-14 place-items-center rounded-[22px] bg-[var(--ink)] text-lg font-bold text-white">{table.name}</span><div><h2 className="font-bold">Stol {table.name}</h2><p className="flex items-center gap-1 text-xs text-[var(--ink-muted)]"><MapPin size={13} /> {table.place || "Joylashuv ko'rsatilmagan"}</p></div></div><button onClick={() => void toggle(table)} className={`rounded-full px-3 py-1 text-xs font-semibold ${table.is_active ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-600"}`}>{table.is_active ? "Faol" : "Yashirilgan"}</button></div><button onClick={() => setSelected(table)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--bg)] py-3 text-sm font-semibold hover:bg-stone-200"><QrCode size={18} /> QR kodni ko&apos;rish</button><div className="mt-3 flex justify-between"><button onClick={() => void copy(table)} className="text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)]"><Copy size={14} className="mr-1 inline" />{copiedId === table.id ? "Nusxalandi" : "Havola"}</button><button onClick={() => void remove(table)} className="text-xs font-medium text-red-500"><Trash2 size={14} className="mr-1 inline" />O&apos;chirish</button></div></div>)}</div>}
+    {createOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setCreateOpen(false)}><form onSubmit={create} onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl bg-white p-6"><div className="flex justify-between"><h2 className="text-lg font-bold">Yangi stol</h2><button type="button" onClick={() => setCreateOpen(false)}><X /></button></div><div className="mt-5 space-y-4"><Field label="Stol raqami yoki nomi"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Masalan, 1 yoki VIP-1" required /></Field><Field label="Joylashuv"><Input value={place} onChange={(e) => setPlace(e.target.value)} placeholder="Masalan, Asosiy zal" /></Field><ErrorText>{error}</ErrorText><div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreateOpen(false)}>Bekor qilish</Button><Button type="submit">QR bilan yaratish</Button></div></div></form></div>}
+    {selected && <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setSelected(null)}><div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center" onClick={(e) => e.stopPropagation()}><div className="flex justify-between"><span /><h2 className="font-bold">Stol {selected.name} QR kodi</h2><button onClick={() => setSelected(null)}><X /></button></div><p className="mt-1 text-sm text-[var(--ink-muted)]">{selected.place || "Restoran stoli"}</p>{selected.qr_code && <img src={resolveMediaUrl(selected.qr_code) ?? ""} alt={`Stol ${selected.name} QR kodi`} className="mx-auto my-5 h-56 w-56 rounded-2xl ring-1 ring-[var(--line)]" />}<div className="grid grid-cols-2 gap-2"><Button variant="secondary" onClick={() => void copy(selected)}><Copy size={16} /> Havola</Button><a href={resolveMediaUrl(selected.qr_code) ?? "#"} download={`stol-${selected.name}.png`}><Button type="button" className="w-full"><Download size={16} /> Yuklash</Button></a></div></div></div>}
+  </div>;
 }

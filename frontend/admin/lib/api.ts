@@ -6,11 +6,25 @@ export function resolveMediaUrl(path: string | null | undefined): string | null 
   return `${API_BASE_URL}${path}`;
 }
 
+function extractErrorMessage(body: unknown, status: number): string {
+  if (body && typeof body === "object") {
+    const data = body as Record<string, unknown>;
+    if ("detail" in data) return String(data.detail);
+
+    // DRF validation errors look like { field: ["msg", ...], non_field_errors: [...] }.
+    const messages = Object.values(data).flatMap((value) =>
+      Array.isArray(value) ? value.map(String) : typeof value === "string" ? [value] : []
+    );
+    if (messages.length > 0) return messages.join(" ");
+  }
+  return `So'rov xatosi (${status})`;
+}
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
   constructor(status: number, body: unknown) {
-    super(typeof body === "object" && body && "detail" in body ? String((body as { detail: unknown }).detail) : `So'rov xatosi (${status})`);
+    super(extractErrorMessage(body, status));
     this.status = status;
     this.body = body;
   }
