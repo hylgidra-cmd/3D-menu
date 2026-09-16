@@ -15,12 +15,15 @@ RUN apt-get update \
 # iOS Quick Look (utils/glb_to_usdz.py + utils/fix_usdz_textures.py). This
 # is the real, only reliable production glTF->USDZ path available - no
 # pure-Python library does this; `usd-core` (already in requirements.txt)
-# can only read/write USD/USDZ, not import glTF.
+# can only read/write USD/USDZ, not import glTF. Blender's glTF importer
+# imports numpy from Debian's Python runtime. It is only a recommendation of
+# the Blender package, so --no-install-recommends would otherwise leave USDZ
+# conversion broken.
 # `blender --version` at build time fails the build immediately if the
 # headless binary can't even start, instead of discovering that at
 # request time in production.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends blender \
+    && apt-get install -y --no-install-recommends blender python3-numpy \
     && rm -rf /var/lib/apt/lists/* \
     && blender --version
 ENV BLENDER_BINARY=/usr/bin/blender
