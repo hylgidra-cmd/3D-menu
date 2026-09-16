@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://threed-menu-api.onrender.com";
 
 export function resolveMediaUrl(path: string | null | undefined): string | null {
   if (!path) return null;
