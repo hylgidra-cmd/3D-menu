@@ -101,6 +101,20 @@ class EatModelProviderErrorTests(APITestCase):
         self.assertEqual(self.eat.task_json, old_task_json)
         self.assertEqual(self.eat.model_file.name, old_model_name)
 
+    def test_regenerate_usdz_reuses_the_existing_model_without_calling_provider(self):
+        self.eat.model_file.save("existing.glb", ContentFile(b"glb"), save=True)
+        self.client.force_authenticate(self.user)
+
+        with patch("apps.eat.views.normalize_glb_bytes", return_value=(b"normalized-glb", {"changed": False})), \
+             patch("apps.eat.views.convert_glb_to_usdz", return_value=b"usdz") as convert:
+            response = self.client.post(f"/api/eat/regenerate-usdz/{self.eat.id}/", HTTP_HOST="localhost")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.eat.refresh_from_db()
+        convert.assert_called_once_with(b"normalized-glb")
+        self.assertTrue(self.eat.model_file_usdz.name.endswith(".usdz"))
+        self.assertEqual(self.eat.usdz_json, {})
+
 
 class CategoryApiTests(APITestCase):
     def setUp(self):

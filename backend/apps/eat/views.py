@@ -232,6 +232,54 @@ class RegenerateModelAPIView(APIView):
         return Response(EatSerializer(eat).data, status=200)
 
 
+class RegenerateUSDZAPIView(APIView):
+    """Retry only the local iOS conversion for an existing 3D model.
+
+    This deliberately does not call the paid image-to-3D provider again.
+    It lets an owner repair models which reached the old Docker image before
+    its Blender-export compatibility fix was deployed.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        eat = Eat.objects.filter(id=pk).first()
+        if not eat:
+            return Response({"detail": "eat not found"}, status=404)
+
+        if not is_restaurant_role(request.user, eat.restaurant, RestaurantStaff.Role.OWNER, RestaurantStaff.Role.MANAGER):
+            return Response({"detail": "You do not have permission to perform this action."}, status=403)
+
+        if not eat.model_file:
+            return Response({"detail": "Avval taom uchun 3D model tayyor bo'lishi kerak."}, status=400)
+
+        try:
+            with eat.model_file.open("rb") as model_file:
+                glb_content = model_file.read()
+        except (FileNotFoundError, OSError):
+            logger.exception("Could not read GLB while retrying USDZ for eat=%s", eat.id)
+            return Response({"detail": "3D model faylini o'qib bo'lmadi."}, status=400)
+
+        try:
+            normalized_content, info = normalize_glb_bytes(glb_content)
+        except GLBNormalizeError as exc:
+            logger.warning("Could not normalize GLB while retrying USDZ for eat=%s: %s", eat.id, exc)
+            eat.usdz_json = usdz_error_payload("GLB_NOT_NORMALIZED")
+            eat.save(update_fields=["usdz_json", "updated_at"])
+            return Response(EatSerializer(eat).data, status=200)
+
+        update_fields = []
+        if info["changed"]:
+            # Keep the previous provider download in storage and only point
+            # the record at the normalized copy, matching normalize_models.
+            eat.model_file.save(f"eat-{eat.id}-normalized.glb", ContentFile(normalized_content), save=False)
+            update_fields.append("model_file")
+
+        update_fields += generate_usdz_for_eat(eat, normalized_content, is_normalized=True)
+        eat.save(update_fields=[*dict.fromkeys(update_fields), "updated_at"])
+        return Response(EatSerializer(eat).data, status=200)
+
+
 class CategoryListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = CategorySerializer
 

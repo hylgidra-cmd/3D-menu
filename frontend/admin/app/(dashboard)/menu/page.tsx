@@ -179,6 +179,20 @@ export default function MenuPage() {
     }
   };
 
+  const regenerateIosFile = async (eat: Eat) => {
+    setCheckingId(eat.id);
+    try {
+      await apiFetch(`/api/eat/regenerate-usdz/${eat.id}/`, { method: "POST" });
+      setError(null);
+    } catch (err) {
+      if (err instanceof AuthenticationError) return;
+      setError(err instanceof ApiError ? err.message : "iOS uchun 3D faylni qayta tayyorlashda xatolik yuz berdi.");
+    } finally {
+      await load();
+      setCheckingId(null);
+    }
+  };
+
   const remove = async (eat: Eat) => {
     if (!confirm(`"${eat.name}" o'chirilsinmi?`)) return;
     await apiFetch(`/api/eat/${eat.id}/`, { method: "DELETE" });
@@ -350,6 +364,11 @@ export default function MenuPage() {
                   {eat.model_error && (
                     <Button variant="secondary" onClick={() => regenerateModel(eat)} disabled={checkingId === eat.id}>
                       Qayta generatsiya
+                    </Button>
+                  )}
+                  {eat.usdz_status === "failed" && (
+                    <Button variant="secondary" onClick={() => regenerateIosFile(eat)} disabled={checkingId === eat.id}>
+                      {checkingId === eat.id ? "..." : "iOS faylini qayta tayyorlash"}
                     </Button>
                   )}
                   <Button variant="danger" onClick={() => remove(eat)}>
