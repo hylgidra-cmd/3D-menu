@@ -1,15 +1,11 @@
 """
-Tests for usdz_convert.py. No 3DAIStudio calls, no real Blender needed:
-- "Blender not found" is tested against this sandbox's real, genuine
-  absence of Blender (not mocked).
-- The happy/failure conversion paths mock subprocess.run, since exercising
-  real Blender isn't possible here - but the actual USDZ *validation*
-  logic is tested against a real, valid USDZ built with pxr (the same USD
+Tests for usdz_convert.py. No 3DAIStudio calls are made. The happy/failure
+conversion paths mock the external converter, while validation is tested
+against a real, valid USDZ built with pxr (the same USD
   library ARKit's Quick Look is built on), not a fake stand-in.
 
 Run with: manage.py test utils.test_usdz_convert
 """
-import os
 import subprocess
 import unittest
 import zipfile
@@ -22,7 +18,6 @@ from pxr import Usd, UsdGeom, UsdUtils
 from utils.usdz_convert import (
     USDZConversionError,
     convert_glb_to_usdz,
-    find_blender_binary,
     validate_usdz_bytes,
 )
 
@@ -42,18 +37,6 @@ def build_minimal_usdz_bytes(tmp_dir: Path) -> bytes:
     usdz_path = tmp_dir / "model.usdz"
     assert UsdUtils.CreateNewUsdzPackage(str(usdc_path), str(usdz_path))
     return usdz_path.read_bytes()
-
-
-class FindBlenderBinaryTests(unittest.TestCase):
-    def test_returns_none_when_not_configured_and_not_on_path(self):
-        # Genuine environment fact for this sandbox: no Blender installed.
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("BLENDER_BINARY", None)
-            self.assertIsNone(find_blender_binary())
-
-    def test_env_var_override_takes_priority(self):
-        with patch.dict(os.environ, {"BLENDER_BINARY": "/opt/blender/blender"}):
-            self.assertEqual(find_blender_binary(), "/opt/blender/blender")
 
 
 class ValidateUsdzBytesTests(unittest.TestCase):
@@ -82,14 +65,8 @@ class ValidateUsdzBytesTests(unittest.TestCase):
 
 
 class ConvertGlbToUsdzTests(unittest.TestCase):
-    def test_raises_when_blender_not_available(self):
-        with patch("utils.usdz_convert.find_blender_binary", return_value=None):
-            with self.assertRaises(USDZConversionError) as ctx:
-                convert_glb_to_usdz(b"fake glb bytes")
-            self.assertEqual(ctx.exception.error_type, "BLENDER_NOT_AVAILABLE")
-
-    def test_happy_path_with_mocked_blender_and_fix_textures(self):
-        """subprocess.run is mocked (no real Blender in this sandbox), but
+    def test_happy_path_with_mocked_converter(self):
+        """The external converter is mocked in this test, but
         it writes a REAL, valid USDZ that then goes through this module's
         actual (unmocked) validation step."""
         with TemporaryDirectory() as tmp:
@@ -101,8 +78,7 @@ class ConvertGlbToUsdzTests(unittest.TestCase):
                 Path(args[-1]).write_bytes(real_usdz_bytes)
                 return subprocess.CompletedProcess(args, returncode=0, stdout=b"", stderr=b"")
 
-            with patch("utils.usdz_convert.find_blender_binary", return_value="/fake/blender"), \
-                 patch("utils.usdz_convert.subprocess.run", side_effect=fake_run):
+            with patch("utils.usdz_convert.subprocess.run", side_effect=fake_run):
                 result = convert_glb_to_usdz(b"fake glb bytes")
 
             self.assertEqual(result, real_usdz_bytes)
@@ -111,8 +87,7 @@ class ConvertGlbToUsdzTests(unittest.TestCase):
         def fake_run(args, capture_output, timeout):
             return subprocess.CompletedProcess(args, returncode=1, stdout=b"", stderr=b"boom: out of memory")
 
-        with patch("utils.usdz_convert.find_blender_binary", return_value="/fake/blender"), \
-             patch("utils.usdz_convert.subprocess.run", side_effect=fake_run):
+        with patch("utils.usdz_convert.subprocess.run", side_effect=fake_run):
             with self.assertRaises(USDZConversionError) as ctx:
                 convert_glb_to_usdz(b"fake glb bytes")
         self.assertEqual(ctx.exception.error_type, "BLENDER_EXPORT_FAILED")
@@ -121,21 +96,19 @@ class ConvertGlbToUsdzTests(unittest.TestCase):
         def fake_run(args, capture_output, timeout):
             raise subprocess.TimeoutExpired(cmd=args, timeout=timeout)
 
-        with patch("utils.usdz_convert.find_blender_binary", return_value="/fake/blender"), \
-             patch("utils.usdz_convert.subprocess.run", side_effect=fake_run):
+        with patch("utils.usdz_convert.subprocess.run", side_effect=fake_run):
             with self.assertRaises(USDZConversionError) as ctx:
                 convert_glb_to_usdz(b"fake glb bytes")
         self.assertEqual(ctx.exception.error_type, "CONVERSION_TIMEOUT")
 
     def test_invalid_output_is_reported_as_usdz_invalid(self):
-        """Blender/fix_textures both report success, but the resulting
-        file is garbage - validation must still catch it."""
+        """A converter can report success while outputting garbage;
+        validation must still catch it."""
         def fake_run(args, capture_output, timeout):
             Path(args[-1]).write_bytes(b"not actually a usdz")
             return subprocess.CompletedProcess(args, returncode=0, stdout=b"", stderr=b"")
 
-        with patch("utils.usdz_convert.find_blender_binary", return_value="/fake/blender"), \
-             patch("utils.usdz_convert.subprocess.run", side_effect=fake_run):
+        with patch("utils.usdz_convert.subprocess.run", side_effect=fake_run):
             with self.assertRaises(USDZConversionError) as ctx:
                 convert_glb_to_usdz(b"fake glb bytes")
         self.assertEqual(ctx.exception.error_type, "USDZ_INVALID")

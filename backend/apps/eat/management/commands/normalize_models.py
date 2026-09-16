@@ -3,7 +3,7 @@ from django.core.management.base import BaseCommand
 
 from apps.eat.models import Eat, usdz_error_payload
 from utils.glb_normalize import GLBNormalizeError, TARGET_MAX_DIMENSION, normalize_glb_bytes
-from utils.usdz_convert import USDZConversionError, convert_glb_to_usdz, find_blender_binary
+from utils.usdz_convert import USDZConversionError, convert_glb_to_usdz
 
 
 class Command(BaseCommand):
@@ -33,12 +33,6 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
         eat_id = options.get("eat_id")
         skip_usdz = options["skip_usdz"]
-
-        if not skip_usdz and not dry_run and not find_blender_binary():
-            self.stdout.write(self.style.WARNING(
-                "No Blender binary found (BLENDER_BINARY unset and `blender` not on PATH) - "
-                "GLBs will still be normalized, but USDZ regeneration will be skipped for every item."
-            ))
 
         queryset = Eat.objects.exclude(model_file="").order_by("id")
         if eat_id:
