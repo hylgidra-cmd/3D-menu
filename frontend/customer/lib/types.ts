@@ -40,5 +40,3 @@ export type PublicMenu = {
   restaurant: PublicRestaurant;
   categories: PublicCategory[];
 };
-
-export type PaymentMethod = "cash" | "card" | "online";

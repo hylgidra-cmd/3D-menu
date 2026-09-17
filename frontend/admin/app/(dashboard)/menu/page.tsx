@@ -313,7 +313,7 @@ export default function MenuPage() {
           {eats.map((eat) => {
             const imageUrl = resolveMediaUrl(eat.image);
             return (
-              <Card key={eat.id} className="flex flex-col gap-2 p-2">
+              <Card key={eat.id} className="flex min-w-0 flex-col gap-2 p-2">
                 {eat.model_url ? (
                   <Model3DPreview modelUrl={resolveMediaUrl(eat.model_url)!} poster={imageUrl} alt={eat.name} />
                 ) : (
@@ -322,7 +322,7 @@ export default function MenuPage() {
                     <img src={imageUrl} alt={eat.name} className="aspect-square w-full rounded-lg object-cover" />
                   )
                 )}
-                <p className="text-sm font-semibold">{eat.name}</p>
+                <p className="break-words text-sm font-semibold">{eat.name}</p>
                 <p className="text-xs text-[var(--ink-muted)]">{formatPrice(eat.price)}</p>
                 <p className="text-xs">
                   3D:{" "}
@@ -352,22 +352,25 @@ export default function MenuPage() {
                     </span>
                   </p>
                 )}
-                <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => openEdit(eat)}>
+                <div className="mt-auto grid grid-cols-2 gap-2 border-t border-[var(--line)] pt-2">
+                  <Button variant="secondary" className="min-w-0 px-2 text-xs" onClick={() => openEdit(eat)}>
                     <Pencil size={15} /> Tahrirlash
                   </Button>
+                  <Button variant="danger" className="min-w-0 px-2 text-xs" onClick={() => remove(eat)}>
+                    O&apos;chirish
+                  </Button>
                   {!eat.model_url && (
-                    <Button variant="secondary" onClick={() => checkModel(eat)} disabled={checkingId === eat.id}>
+                    <Button variant="secondary" className="col-span-2 w-full min-w-0 px-2 text-xs" onClick={() => checkModel(eat)} disabled={checkingId === eat.id}>
                       {checkingId === eat.id ? "..." : "Tekshirish"}
                     </Button>
                   )}
                   {eat.model_error && (
-                    <Button variant="secondary" onClick={() => regenerateModel(eat)} disabled={checkingId === eat.id}>
+                    <Button variant="secondary" className="col-span-2 w-full min-w-0 px-2 text-xs" onClick={() => regenerateModel(eat)} disabled={checkingId === eat.id}>
                       Qayta generatsiya
                     </Button>
                   )}
                   {eat.model_url && (
-                    <Button variant="secondary" onClick={() => regenerateIosFile(eat)} disabled={checkingId === eat.id}>
+                    <Button variant="secondary" className="col-span-2 w-full min-w-0 px-2 text-xs" onClick={() => regenerateIosFile(eat)} disabled={checkingId === eat.id}>
                       {checkingId === eat.id
                         ? "..."
                         : eat.usdz_status === "ready"
@@ -375,9 +378,6 @@ export default function MenuPage() {
                           : "iOS faylini qayta tayyorlash"}
                     </Button>
                   )}
-                  <Button variant="danger" onClick={() => remove(eat)}>
-                    O&apos;chirish
-                  </Button>
                 </div>
               </Card>
             );

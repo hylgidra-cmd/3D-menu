@@ -20,11 +20,11 @@ export async function getPublicMenu(token: string): Promise<PublicMenu | null> {
   return res.json();
 }
 
-export async function submitPublicOrder(token: string, items: { eat: number; quantity: number }[], payment_method: string, note: string) {
+export async function submitPublicOrder(token: string, items: { eat: number; quantity: number }[], note: string) {
   const res = await fetch(`${API_BASE_URL}/api/public/orders/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ table_token: token, items, payment_method, note }),
+    body: JSON.stringify({ table_token: token, items, note }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail ?? "Buyurtmani yuborib bo'lmadi.");

@@ -19,13 +19,10 @@ class PublicOrderCreateAPIView(APIView):
     def post(self, request):
         token = request.data.get("table_token")
         items = request.data.get("items")
-        payment_method = request.data.get("payment_method")
         note = str(request.data.get("note") or "")[:500]
         table = Table.objects.select_related("restaurant").filter(token=token, is_active=True, restaurant__is_active=True).first()
         if not table:
             return Response({"detail": "Stol yoki QR kod faol emas."}, status=404)
-        if payment_method not in Order.PaymentMethod.values:
-            return Response({"payment_method": ["To'lov usulini tanlang."]}, status=400)
         if not isinstance(items, list) or not items:
             return Response({"items": ["Savat bo'sh."]}, status=400)
 
@@ -44,7 +41,14 @@ class PublicOrderCreateAPIView(APIView):
             return Response({"items": ["Tanlangan taom menyuda topilmadi."]}, status=400)
 
         with transaction.atomic():
-            order = Order.objects.create(restaurant=table.restaurant, table=table, payment_method=payment_method, note=note)
+            # Payment is collected by the restaurant's cashier. Public QR menus
+            # deliberately do not ask guests to choose or make a payment.
+            order = Order.objects.create(
+                restaurant=table.restaurant,
+                table=table,
+                payment_method=Order.PaymentMethod.CASH,
+                note=note,
+            )
             total = Decimal("0")
             for eat_id, quantity in quantities.items():
                 eat = eats[eat_id]
