@@ -136,12 +136,42 @@ def export_textures(gltf, binary):
     return exported, files
 
 
-def texture_for_material(gltf, material, images):
-    texture = (material.get("pbrMetallicRoughness") or {}).get("baseColorTexture")
-    if not texture:
+def texture_source_index(gltf, texture_info):
+    """Resolve normal glTF textures and the provider's WebP/Basis extensions.
+
+    TRELLIS writes its image index under ``EXT_texture_webp`` instead of
+    ``texture.source``.  The old converter therefore omitted the texture and
+    made a structurally valid, but white, USDZ on iPhone.
+    """
+    if not texture_info:
         return None
-    source = (gltf.get("textures") or [])[texture["index"]].get("source")
-    return images.get(source)
+    index = texture_info.get("index")
+    textures = gltf.get("textures") or []
+    if not isinstance(index, int) or not 0 <= index < len(textures):
+        raise ValueError("material references an invalid texture")
+
+    texture = textures[index]
+    if "source" in texture:
+        return texture["source"]
+    extensions = texture.get("extensions") or {}
+    for name in ("EXT_texture_webp", "KHR_texture_basisu"):
+        source = (extensions.get(name) or {}).get("source")
+        if source is not None:
+            return source
+    raise ValueError("material texture has no supported image source")
+
+
+def texture_for_material(gltf, texture_info, images):
+    source = texture_source_index(gltf, texture_info)
+    if source is None:
+        return None
+    path = images.get(source)
+    if not path:
+        # A missing texture must make conversion fail: presenting a white
+        # model as an iOS-ready result is worse than reporting a retryable
+        # conversion error.
+        raise ValueError(f"could not export texture image {source}")
+    return path
 
 
 def material_usda(gltf, images):
@@ -150,8 +180,13 @@ def material_usda(gltf, images):
     for index, material in enumerate(materials):
         pbr = material.get("pbrMetallicRoughness") or {}
         color = pbr.get("baseColorFactor", [1, 1, 1, 1])
-        texture = texture_for_material(gltf, material, images)
         base = f"/Model/Materials/Material_{index}"
+        base_color_texture = texture_for_material(gltf, pbr.get("baseColorTexture"), images)
+        metallic_roughness_texture = texture_for_material(gltf, pbr.get("metallicRoughnessTexture"), images)
+        normal_texture = texture_for_material(gltf, material.get("normalTexture"), images)
+        emissive_texture = texture_for_material(gltf, material.get("emissiveTexture"), images)
+        emissive_factor = material.get("emissiveFactor", [0, 0, 0])
+        alpha_mode = material.get("alphaMode", "OPAQUE")
         lines += [
             f"    def Material \"Material_{index}\"",
             "    {",
@@ -162,10 +197,27 @@ def material_usda(gltf, images):
             f"        color3f inputs:diffuseColor = {tuple_text(color[:3])}",
             f"        float inputs:metallic = {number(pbr.get('metallicFactor', 1))}",
             f"        float inputs:roughness = {number(pbr.get('roughnessFactor', 1))}",
-            "        token outputs:surface",
-            "      }",
         ]
-        if texture:
+        if base_color_texture:
+            # This must be inside PreviewSurface.  At Material scope Quick
+            # Look ignores the connection and falls back to white.
+            lines += [f"        color3f inputs:diffuseColor.connect = <{base}/BaseColorTexture.outputs:rgb>"]
+            if alpha_mode == "BLEND":
+                lines += [f"        float inputs:opacity.connect = <{base}/BaseColorTexture.outputs:a>"]
+        if metallic_roughness_texture:
+            lines += [
+                f"        float inputs:roughness.connect = <{base}/MetallicRoughnessTexture.outputs:g>",
+                f"        float inputs:metallic.connect = <{base}/MetallicRoughnessTexture.outputs:b>",
+            ]
+        if normal_texture:
+            lines += [f"        normal3f inputs:normal.connect = <{base}/NormalTexture.outputs:rgb>"]
+        if emissive_texture:
+            lines += [f"        color3f inputs:emissiveColor.connect = <{base}/EmissiveTexture.outputs:rgb>"]
+        elif any(float(value) for value in emissive_factor):
+            lines += [f"        color3f inputs:emissiveColor = {tuple_text(emissive_factor[:3])}"]
+        lines += ["        token outputs:surface", "      }"]
+
+        if base_color_texture:
             lines += [
                 "      def Shader \"PrimvarReader_st\"",
                 "      {",
@@ -176,16 +228,49 @@ def material_usda(gltf, images):
                 "      def Shader \"BaseColorTexture\"",
                 "      {",
                 "        uniform token info:id = \"UsdUVTexture\"",
-                f"        asset inputs:file = @{texture}@",
+                f"        asset inputs:file = @{base_color_texture}@",
+                "        token inputs:sourceColorSpace = \"sRGB\"",
+                "        float4 inputs:scale = " + tuple_text(color[:4]),
+                "        float4 inputs:bias = (0, 0, 0, 0)",
                 f"        float2 inputs:st.connect = <{base}/PrimvarReader_st.outputs:result>",
                 "        float3 outputs:rgb",
                 "        float outputs:a",
                 "      }",
-                f"      color3f inputs:diffuseColor.connect = <{base}/BaseColorTexture.outputs:rgb>",
             ]
+        if metallic_roughness_texture:
+            lines += texture_shader_usda("MetallicRoughnessTexture", metallic_roughness_texture, base, "raw")
+        if normal_texture:
+            lines += texture_shader_usda(
+                "NormalTexture", normal_texture, base, "raw",
+                scale=(2, 2, 2, 1), bias=(-1, -1, -1, 0),
+            )
+        if emissive_texture:
+            lines += texture_shader_usda(
+                "EmissiveTexture", emissive_texture, base, "sRGB",
+                scale=(*emissive_factor[:3], 1),
+            )
         lines += ["    }"]
     lines += ["  }"]
     return lines
+
+
+def texture_shader_usda(name, texture, material_path, color_space, scale=(1, 1, 1, 1), bias=(0, 0, 0, 0)):
+    return [
+        f"      def Shader \"{name}\"",
+        "      {",
+        "        uniform token info:id = \"UsdUVTexture\"",
+        f"        asset inputs:file = @{texture}@",
+        f"        token inputs:sourceColorSpace = \"{color_space}\"",
+        "        float4 inputs:scale = " + tuple_text(scale),
+        "        float4 inputs:bias = " + tuple_text(bias),
+        f"        float2 inputs:st.connect = <{material_path}/PrimvarReader_st.outputs:result>",
+        "        float3 outputs:rgb",
+        "        float outputs:r",
+        "        float outputs:g",
+        "        float outputs:b",
+        "        float outputs:a",
+        "      }",
+    ]
 
 
 def primitive_usda(gltf, binary, primitive, primitive_index):
