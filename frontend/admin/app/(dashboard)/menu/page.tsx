@@ -366,9 +366,13 @@ export default function MenuPage() {
                       Qayta generatsiya
                     </Button>
                   )}
-                  {eat.usdz_status === "failed" && (
+                  {eat.model_url && (
                     <Button variant="secondary" onClick={() => regenerateIosFile(eat)} disabled={checkingId === eat.id}>
-                      {checkingId === eat.id ? "..." : "iOS faylini qayta tayyorlash"}
+                      {checkingId === eat.id
+                        ? "..."
+                        : eat.usdz_status === "ready"
+                          ? "iOS faylini yangilash"
+                          : "iOS faylini qayta tayyorlash"}
                     </Button>
                   )}
                   <Button variant="danger" onClick={() => remove(eat)}>
