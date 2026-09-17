@@ -12,4 +12,4 @@ python manage.py seed_demo_data
 # default would SIGKILL the worker mid-conversion well before our own
 # per-step timeouts get a chance to fail cleanly and record a proper
 # usdz_json error - 240s gives real headroom above that worst case.
-exec gunicorn Platform3d.wsgi:application --bind "0.0.0.0:${PORT:-8000}" --workers "${WEB_CONCURRENCY:-3}" --timeout 240
+exec gunicorn Platform3d.wsgi:application --bind "0.0.0.0:${PORT:-10000}" --workers "${WEB_CONCURRENCY:-3}" --timeout 240

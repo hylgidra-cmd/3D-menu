@@ -16,6 +16,9 @@ COPY . .
 
 RUN chmod +x entrypoint.sh
 
-EXPOSE 8000
+# Render routes public traffic to the port exposed by the Docker image.  Its
+# Web Service runtime sets PORT=10000, so exposing 8000 leaves gunicorn healthy
+# internally while every external request waits on the wrong port.
+EXPOSE 10000
 
 ENTRYPOINT ["./entrypoint.sh"]
