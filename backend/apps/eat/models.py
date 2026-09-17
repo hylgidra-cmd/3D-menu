@@ -126,7 +126,15 @@ class Eat(models.Model):
 
     @property
     def model_url_usdz(self):
-        return self.model_file_usdz.url if self.model_file_usdz else None
+        if not self.model_file_usdz:
+            return None
+        # Quick Look can retain a previously downloaded USDZ for the same
+        # URL.  Regeneration replaces the R2 object in place, so expose a
+        # version tied to the saved record and make iPhone fetch the new file.
+        url = self.model_file_usdz.url
+        separator = "&" if "?" in url else "?"
+        version = int(self.updated_at.timestamp()) if self.updated_at else 0
+        return f"{url}{separator}v={version}"
 
     @property
     def model_status(self):
